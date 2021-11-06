@@ -155,6 +155,15 @@ public:
 		void AttackEnd();
 	UPROPERTY()
 		class UBoxComponent* attackBox;
+	//Triggered whe collision hit even fires between our weapon and enemy entities
+	UFUNCTION()
+		void OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	//Triggered when collider overlaps another component
+	//UFUNCTION()
+	//	void OnAttackOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	////Triggered when collider stops overlapping another component
+	//UFUNCTION()
+	//	void OnAttackOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 	//Dash
 	UFUNCTION()
