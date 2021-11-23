@@ -73,6 +73,7 @@ ARebellionCharacter::ARebellionCharacter()
 	meleeWeaponCollisionBox->SetupAttachment(RootComponent);
 	//Reference to Engine-Collision profiles
 	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
 
 	//TODO: Method to handle shooting and use this
 	rangedWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("RangedCollisionBox"));
@@ -91,6 +92,10 @@ void ARebellionCharacter::BeginPlay()
 
 	//Attach box to mesh on socket based on attachmentRules
 	meleeWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
+
+	meleeWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
+	/*meleeWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
+	meleeWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -183,6 +188,10 @@ void ARebellionCharacter::AttackStart()
 	Log(ELogLevel::INFO, __FUNCTION__);
 	
 	meleeWeaponCollisionBox->SetCollisionProfileName("Weapon");
+	//Sets "Simulation Generates Hit events" value
+	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(true);
+	//Sets "Generate Overlap Events" value
+	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
 }
 
 void ARebellionCharacter::AttackEnd() 
@@ -190,7 +199,26 @@ void ARebellionCharacter::AttackEnd()
 	Log(ELogLevel::INFO, __FUNCTION__);
 
 	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
+	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
 }
+
+void ARebellionCharacter::OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) 
+{
+	Log(ELogLevel::WARNING, Hit.GetActor()->GetName());
+}
+
+//void ARebellionCharacter::OnAttackOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) 
+//{
+//	Log(ELogLevel::INFO, __FUNCTION__);
+//	//Log(ELogLevel::WARNING, SweepResult.GetActor()->GetName());
+//}
+
+//void ARebellionCharacter::OnAttackOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+//{
+//	Log(ELogLevel::INFO, __FUNCTION__);
+//	//Log(ELogLevel::WARNING, OtherActor->GetName());
+//}
 
 //MH added method for blocking
 void ARebellionCharacter::BlockStart()
