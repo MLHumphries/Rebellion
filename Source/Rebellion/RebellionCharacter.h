@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Components/BoxComponent.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundCue.h"
 
 #include "RebellionCharacter.generated.h"
 
@@ -52,6 +54,10 @@ class ARebellionCharacter : public ACharacter
 	//Melee sword attack montage
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
 		class UAnimMontage* SwordAttackMontage;
+
+	//Sound Cue
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Audio, meta = (AllowPrivateAccess = "true"))
+		class USoundCue* SwordSoundCue;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
 		class UBoxComponent* meleeWeaponCollisionBox;
@@ -147,6 +153,8 @@ public:
 
 	//Triggers attack aninimatiosn based on user input
 	void AttackInput();
+	UPROPERTY()
+		int montageSectionIndex = 1;
 
 	//Attack
 	UFUNCTION()
@@ -181,6 +189,9 @@ public:
 	UPROPERTY(EditAnywhere)
 		float dashStopTimer;
 
+private:
+
+	UAudioComponent* SwordAudioComponent;
 	//Tracking/Debugging
 	/**
 	Log - prints a message to all log outputs with a specific color

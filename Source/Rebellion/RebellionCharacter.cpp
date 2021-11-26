@@ -10,6 +10,7 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 
 
@@ -68,6 +69,19 @@ ARebellionCharacter::ARebellionCharacter()
 		SwordAttackMontage = SwordAttackMontageObject.Object;
 	}
 
+	//Load sounds cue object
+	static ConstructorHelpers::FObjectFinder<USoundCue> SwordSoundCueObject(TEXT("SoundCue'/Game/Audio/Player/SwordSwooshSoundCue.SwordSwooshSoundCue'"));
+	if (SwordSoundCueObject.Succeeded()) 
+	{
+		//if sound object is loaded, get object that was loaded
+		SwordSoundCue = SwordSoundCueObject.Object;
+
+		//Instantiate SwordAudioComponent and attach to player
+		SwordAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("SwordAudioComponent"));
+		SwordAudioComponent->SetupAttachment(RootComponent);
+
+	}
+
 	//Creates collision box
 	meleeWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeCollisionBox"));
 	meleeWeaponCollisionBox->SetupAttachment(RootComponent);
@@ -96,6 +110,11 @@ void ARebellionCharacter::BeginPlay()
 	meleeWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
 	/*meleeWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
 	meleeWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
+
+	if (SwordAudioComponent && SwordSoundCue)
+	{
+		SwordAudioComponent->SetSound(SwordSoundCue);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -173,13 +192,36 @@ void ARebellionCharacter::AttackInput()
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
-	//generate random number for montage call. 2 will be the first called since 1 has an issue with losing reference
-	int montageSectionIndex = FMath::RandRange(1, 3);
+	//generate random number for montage call. 
+	//int montageSectionIndex = FMath::RandRange(1, 3);
+	//int montageSectionIndex = 1;
+	
+	if (montageSectionIndex > 3) 
+	{
+		montageSectionIndex = 1;
 
-	//string reference for animation section
-	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+		FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
 
-	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+		montageSectionIndex++;
+	}
+	else 
+	{
+		//string reference for animation section
+		FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+
+		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+		montageSectionIndex++;
+	}
+	//Add statement for air attack here**
+
+	//
+	if (SwordAudioComponent && !SwordAudioComponent->IsPlaying())
+	{
+		//default pitch volume is 1.0f
+		SwordAudioComponent->SetPitchMultiplier(FMath::RandRange(1.0f, 1.4f));
+		SwordAudioComponent->Play(0.0f);
+	}
 }
 
 //MH added
@@ -194,6 +236,7 @@ void ARebellionCharacter::AttackStart()
 	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
 }
 
+//MH Added
 void ARebellionCharacter::AttackEnd() 
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
@@ -203,8 +246,10 @@ void ARebellionCharacter::AttackEnd()
 	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
 }
 
+//MH added
 void ARebellionCharacter::OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) 
 {
+	
 	Log(ELogLevel::WARNING, Hit.GetActor()->GetName());
 }
 
