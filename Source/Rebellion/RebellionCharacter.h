@@ -7,9 +7,23 @@
 #include "Components/BoxComponent.h"
 #include "Components/AudioComponent.h"
 #include "Sound/SoundCue.h"
+#include "Engine/DataTable.h"
 
 #include "RebellionCharacter.generated.h"
 
+
+USTRUCT(BlueprintType)
+struct FPlayerAttackMontage : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		UAnimMontage* montage;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		int32 animSectionCount;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FString description;
+};
 
 //MH added for tracking
 UENUM(BlueprintType)
@@ -35,7 +49,8 @@ enum class ELogOutput : uint8
 UENUM(BlueprintType)
 enum class EAttackType : uint8
 {
-	MELEE			UMETA(DisplayName = "Melee")
+	MELEE_PRIMARY			UMETA(DisplayName = "Melee - Primary"),
+	MELEE_SECONDARY			UMETA(DisplayName = "Melee - Secondary")
 };
 
 UCLASS(config=Game)
@@ -60,10 +75,13 @@ class ARebellionCharacter : public ACharacter
 		class USoundCue* SwordSoundCue;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
-		class UBoxComponent* meleeWeaponCollisionBox;
+		class UBoxComponent* primaryWeaponCollisionBox;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
-		class UBoxComponent* rangedWeaponCollisionBox;
+		class UBoxComponent* secondaryWeaponCollisionBox;
+
+	/*UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
+		class UBoxComponent* rangedWeaponCollisionBox;*/
 
 public:
 	ARebellionCharacter();
@@ -152,11 +170,15 @@ public:
 		void BlockEnd();
 
 	//Triggers attack aninimatiosn based on user input
-	void AttackInput();
+	void AttackInput(EAttackType attackType);
 	UPROPERTY()
 		int montageSectionIndex = 1;
 
 	//Attack
+
+	void PrimaryAttack();
+	void SecondaryAttack();
+
 	UFUNCTION()
 		void AttackStart();
 	UFUNCTION()
@@ -166,6 +188,7 @@ public:
 	//Triggered whe collision hit even fires between our weapon and enemy entities
 	UFUNCTION()
 		void OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
 	//Triggered when collider overlaps another component
 	//UFUNCTION()
 	//	void OnAttackOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -192,6 +215,11 @@ public:
 private:
 
 	UAudioComponent* SwordAudioComponent;
+
+	FPlayerAttackMontage* attackMontage;
+
+	EAttackType currentAttack;
+
 	//Tracking/Debugging
 	/**
 	Log - prints a message to all log outputs with a specific color

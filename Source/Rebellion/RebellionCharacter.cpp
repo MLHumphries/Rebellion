@@ -83,15 +83,15 @@ ARebellionCharacter::ARebellionCharacter()
 	}
 
 	//Creates collision box
-	meleeWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeCollisionBox"));
-	meleeWeaponCollisionBox->SetupAttachment(RootComponent);
+	primaryWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeCollisionBox"));
+	primaryWeaponCollisionBox->SetupAttachment(RootComponent);
 	//Reference to Engine-Collision profiles
-	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
+	primaryWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
 
 	//TODO: Method to handle shooting and use this
-	rangedWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("RangedCollisionBox"));
-	rangedWeaponCollisionBox->SetupAttachment(RootComponent);
+	//rangedWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("RangedCollisionBox"));
+	//rangedWeaponCollisionBox->SetupAttachment(RootComponent);
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
@@ -105,11 +105,11 @@ void ARebellionCharacter::BeginPlay()
 	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
 
 	//Attach box to mesh on socket based on attachmentRules
-	meleeWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
+	primaryWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
 
-	meleeWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
-	/*meleeWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
-	meleeWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
+	primaryWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
+	/*primaryWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
+	primaryWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
 
 	if (SwordAudioComponent && SwordSoundCue)
 	{
@@ -149,10 +149,10 @@ void ARebellionCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &ARebellionCharacter::OnResetVR);
 
 	//MH Added Inputs
-	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ARebellionCharacter::AttackInput);
-	PlayerInputComponent->BindAction("Attack", IE_Released, this, &ARebellionCharacter::AttackEnd);
-	PlayerInputComponent->BindAction("Block", IE_Pressed, this, &ARebellionCharacter::BlockStart);
-	PlayerInputComponent->BindAction("Block", IE_Released, this, &ARebellionCharacter::BlockEnd);
+	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ARebellionCharacter::PrimaryAttack);
+	PlayerInputComponent->BindAction("PrimaryAttack", IE_Released, this, &ARebellionCharacter::AttackEnd);
+	PlayerInputComponent->BindAction("SecondaryAttack", IE_Pressed, this, &ARebellionCharacter::SecondaryAttack);
+	PlayerInputComponent->BindAction("SecondaryAttack", IE_Released, this, &ARebellionCharacter::BlockEnd);
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ARebellionCharacter::Sprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ARebellionCharacter::Walk);
 	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ARebellionCharacter::DashStart);
@@ -188,15 +188,22 @@ void ARebellionCharacter::Walk()
 	GetCharacterMovement()->MaxWalkSpeed = walkSpeed;
 }
 
-void ARebellionCharacter::AttackInput() 
+//MH added
+void ARebellionCharacter::AttackInput(EAttackType attackType) 
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
 	//generate random number for montage call. 
 	//int montageSectionIndex = FMath::RandRange(1, 3);
 	//int montageSectionIndex = 1;
-	
-	if (montageSectionIndex > 3) 
+	 
+	//Add statement for air attack here**
+	if (GetCharacterMovement()->IsFalling())
+	{
+		FString montageSection = "start_3";
+		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	}
+	else if (montageSectionIndex > 3 && !GetCharacterMovement()->IsFalling()) 
 	{
 		montageSectionIndex = 1;
 
@@ -213,9 +220,8 @@ void ARebellionCharacter::AttackInput()
 		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
 		montageSectionIndex++;
 	}
-	//Add statement for air attack here**
-
-	//
+	
+	//Plays sound if audio is not currently playing and SwordAudioComponent exists
 	if (SwordAudioComponent && !SwordAudioComponent->IsPlaying())
 	{
 		//default pitch volume is 1.0f
@@ -225,15 +231,27 @@ void ARebellionCharacter::AttackInput()
 }
 
 //MH added
+void ARebellionCharacter::PrimaryAttack()
+{
+	AttackInput(EAttackType::MELEE_PRIMARY);
+}
+
+//MH added
+void ARebellionCharacter::SecondaryAttack() 
+{
+	AttackInput(EAttackType::MELEE_SECONDARY);
+}
+
+//MH added
 void ARebellionCharacter::AttackStart()
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 	
-	meleeWeaponCollisionBox->SetCollisionProfileName("Weapon");
+	primaryWeaponCollisionBox->SetCollisionProfileName("Weapon");
 	//Sets "Simulation Generates Hit events" value
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(true);
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(true);
 	//Sets "Generate Overlap Events" value
-	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
+	/*primaryWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
 }
 
 //MH Added
@@ -241,9 +259,9 @@ void ARebellionCharacter::AttackEnd()
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
-	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
-	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
+	primaryWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
+	/*primaryWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
 }
 
 //MH added
