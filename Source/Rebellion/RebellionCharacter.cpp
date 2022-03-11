@@ -11,6 +11,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Math/Vector.h"
 
 
 
@@ -57,11 +58,11 @@ ARebellionCharacter::ARebellionCharacter()
 	sprintSpeed = 900;
 	//Dashing adjusters
 	bCanDash = true;
-	dashDistance = 6000;
+	dashDistance = 1000;
 	dashCooldown = 1;
 	dashStopTimer = 0.1;
 
-	//Load animation montage
+	//Load melee attack animation montage
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> SwordAttackMontageObject(TEXT("AnimMontage'/Game/Mannequin/Animations/MeleeAttackMontage.MeleeAttackMontage'"));
 	if (SwordAttackMontageObject.Succeeded()) 
 	{
@@ -267,7 +268,13 @@ void ARebellionCharacter::AttackEnd()
 //MH added
 void ARebellionCharacter::OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) 
 {
-	
+	/*int enemyHealth = 10;
+
+	if (Hit.GetActor()->GetName() == "EnemyCube")
+	{
+		enemyHealth--;
+		Log(ELogLevel::DEBUG, FString::FromInt(enemyHealth));
+	}*/
 	Log(ELogLevel::WARNING, Hit.GetActor()->GetName());
 }
 
@@ -301,11 +308,13 @@ void ARebellionCharacter::DashStart()
 	Log(ELogLevel::INFO, __FUNCTION__);
 	if (bCanDash == true)
 	{
+		//APlayerController player;
 		//Removes friction
 		GetCharacterMovement()->BrakingFrictionFactor = 0;
+		//Log(ELogLevel::WARNING, FVector::);
 		//launches character. Booleans set to true allow override of current velocities from XYZ
 		//GetSafeNormal sets the X and Y value to 1 so dashDistance can be consistent
-		LaunchCharacter(FVector(FollowCamera->GetForwardVector().X, FollowCamera->GetForwardVector().Y, 0).GetSafeNormal() * dashDistance, true, true);
+		//LaunchCharacter(FVector(addin.Inp, GetCharacterMovement(), 0).GetSafeNormal() * dashDistance, true, true);
 		bCanDash = false;
 		//This timer means we wait timer seconds and stop dashing. Boolean sets looping timer to false
 		GetWorldTimerManager().SetTimer(dashTimer, this, & ARebellionCharacter::DashStop, dashStopTimer, false);

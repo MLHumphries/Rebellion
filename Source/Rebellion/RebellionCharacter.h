@@ -169,7 +169,7 @@ public:
 	UFUNCTION()
 		void BlockEnd();
 
-	//Triggers attack aninimatiosn based on user input
+	//Triggers attack animation based on user input
 	void AttackInput(EAttackType attackType);
 	UPROPERTY()
 		int montageSectionIndex = 1;
