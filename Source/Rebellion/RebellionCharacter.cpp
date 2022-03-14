@@ -62,12 +62,12 @@ ARebellionCharacter::ARebellionCharacter()
 	dashCooldown = 1;
 	dashStopTimer = 0.1;
 
-	//Load melee attack animation montage
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> SwordAttackMontageObject(TEXT("AnimMontage'/Game/Mannequin/Animations/MeleeAttackMontage.MeleeAttackMontage'"));
-	if (SwordAttackMontageObject.Succeeded()) 
+	//Load melee attack data table
+	static ConstructorHelpers::FObjectFinder<UDataTable> playerAttackMontageObject(TEXT("DataTable'/Game/DataTables/PlayerAttackMontageDataTable.PlayerAttackMontageDataTable'"));
+	if (playerAttackMontageObject.Succeeded()) 
 	{
 		//if the object is loaded, get the object that was loaded
-		SwordAttackMontage = SwordAttackMontageObject.Object;
+		playerAttackDataTable = playerAttackMontageObject.Object;
 	}
 
 	//Load sounds cue object
@@ -102,11 +102,8 @@ void ARebellionCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//Attach collision component to sockets based on transformation definitions
-	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+	
 
-	//Attach box to mesh on socket based on attachmentRules
-	primaryWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
 
 	primaryWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
 	/*primaryWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
@@ -149,11 +146,15 @@ void ARebellionCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	// VR headset functionality
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &ARebellionCharacter::OnResetVR);
 
-	//MH Added Inputs
+	//Attack Inputs
 	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ARebellionCharacter::PrimaryAttack);
-	PlayerInputComponent->BindAction("PrimaryAttack", IE_Released, this, &ARebellionCharacter::AttackEnd);
+	//Keep for testing
+	//PlayerInputComponent->BindAction("PrimaryAttack", IE_Released, this, &ARebellionCharacter::AttackEnd);
 	PlayerInputComponent->BindAction("SecondaryAttack", IE_Pressed, this, &ARebellionCharacter::SecondaryAttack);
-	PlayerInputComponent->BindAction("SecondaryAttack", IE_Released, this, &ARebellionCharacter::BlockEnd);
+	//Keep for testing
+	//PlayerInputComponent->BindAction("SecondaryAttack", IE_Released, this, &ARebellionCharacter::BlockEnd);
+	
+	//Movement Inputs
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ARebellionCharacter::Sprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ARebellionCharacter::Walk);
 	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ARebellionCharacter::DashStart);
@@ -194,43 +195,94 @@ void ARebellionCharacter::AttackInput(EAttackType attackType)
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
-	//generate random number for montage call. 
-	//int montageSectionIndex = FMath::RandRange(1, 3);
-	//int montageSectionIndex = 1;
-	 
-	//Add statement for air attack here**
-	if (GetCharacterMovement()->IsFalling())
+	if (playerAttackDataTable)
 	{
-		FString montageSection = "start_3";
-		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
-	}
-	else if (montageSectionIndex > 3 && !GetCharacterMovement()->IsFalling()) 
-	{
-		montageSectionIndex = 1;
+		static const FString contextString(TEXT("Player Attack Montage Context"));
+		FName attackRowKey;
 
-		FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+		//Attach collision component to sockets based on transformation definitions
+		const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
 
-		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+		switch (attackType)
+		{
+		case EAttackType::MELEE_PRIMARY:
+			attackRowKey = FName(TEXT("PrimaryAttack"));
+
+			//Attach box to mesh on socket based on attachmentRules
+			primaryWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
+
+			isAnimationBlended = false;
+			break;
+
+		case EAttackType::MELEE_SECONDARY:
+			attackRowKey = FName(TEXT("SecondaryAttack"));
+			
+			isAnimationBlended = false;
+			break;
+
+		default:
+			isAnimationBlended = true;
+			break;
+		}
+
+		attackMontage = playerAttackDataTable->FindRow<FPlayerAttackMontage>(attackRowKey, contextString, true);
+
+		if (attackMontage)
+		{
+			if (montageSectionIndex > 3)
+			{
+				montageSectionIndex = 1;
+			}
+			FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+			Log(ELogLevel::WARNING, montageSection);
+			PlayAnimMontage(attackMontage->montage, 1.0f, FName(montageSection));
+		}
 		montageSectionIndex++;
 	}
-	else 
-	{
-		//string reference for animation section
-		FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
 
-		PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
-		montageSectionIndex++;
-	}
 	
-	//Plays sound if audio is not currently playing and SwordAudioComponent exists
-	if (SwordAudioComponent && !SwordAudioComponent->IsPlaying())
-	{
-		//default pitch volume is 1.0f
-		SwordAudioComponent->SetPitchMultiplier(FMath::RandRange(1.0f, 1.4f));
-		SwordAudioComponent->Play(0.0f);
-	}
+	////Add statement for air attack here**
+	//if (GetCharacterMovement()->IsFalling())
+	//{
+	//	FString montageSection = "start_3";
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//}
+	//else if (montageSectionIndex > 3 && !GetCharacterMovement()->IsFalling()) 
+	//{
+	//	montageSectionIndex = 1;
+
+	//	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//	montageSectionIndex++;
+	//}
+	//else 
+	//{
+	//	//string reference for animation section
+	//	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//	montageSectionIndex++;
+	//}
+	//
+	////Plays sound if audio is not currently playing and SwordAudioComponent exists
+	//if (SwordAudioComponent && !SwordAudioComponent->IsPlaying())
+	//{
+	//	//default pitch volume is 1.0f
+	//	SwordAudioComponent->SetPitchMultiplier(FMath::RandRange(1.0f, 1.4f));
+	//	SwordAudioComponent->Play(0.0f);
+	//}
 }
 
+bool ARebellionCharacter::GetIsAnimationBlended()
+{
+	return isAnimationBlended;
+}
+
+void ARebellionCharacter::SetIsKeyboardEnabled(bool enabled)
+{
+	isKeyboardEnabled = enabled;
+}
 //MH added
 void ARebellionCharacter::PrimaryAttack()
 {

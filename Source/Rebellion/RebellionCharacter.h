@@ -11,7 +11,7 @@
 
 #include "RebellionCharacter.generated.h"
 
-
+//Needs implementing
 USTRUCT(BlueprintType)
 struct FPlayerAttackMontage : public FTableRowBase
 {
@@ -23,6 +23,26 @@ struct FPlayerAttackMontage : public FTableRowBase
 		int32 animSectionCount;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		FString description;
+};
+
+//Needs implementing
+USTRUCT(BlueprintType)
+struct FMeleeCollisionProfile 
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName enabled;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName disabled;
+
+	//default constructor
+	FMeleeCollisionProfile()
+	{
+		enabled = FName(TEXT("Weapon"));
+		disabled = FName(TEXT("NoCollision"));
+	}
 };
 
 //MH added for tracking
@@ -66,6 +86,9 @@ class ARebellionCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
+		class UDataTable* playerAttackDataTable;
+
 	//Melee sword attack montage
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
 		class UAnimMontage* SwordAttackMontage;
@@ -82,6 +105,9 @@ class ARebellionCharacter : public ACharacter
 
 	/*UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
 		class UBoxComponent* rangedWeaponCollisionBox;*/
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
+		float animationVariable;
 
 public:
 	ARebellionCharacter();
@@ -169,7 +195,7 @@ public:
 	UFUNCTION()
 		void BlockEnd();
 
-	//Triggers attack animation based on user input
+	//Triggers attack type based on user input
 	void AttackInput(EAttackType attackType);
 	UPROPERTY()
 		int montageSectionIndex = 1;
@@ -188,6 +214,14 @@ public:
 	//Triggered whe collision hit even fires between our weapon and enemy entities
 	UFUNCTION()
 		void OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	/** Bool that tells us if we need to branch our animation Blueprint pathes*/
+	UFUNCTION(BlueprintCallable, Category=Animation)
+	bool GetIsAnimationBlended();
+
+	/** Bool that tells us if we need to branch our animation Blueprint pathes*/
+	UFUNCTION(BlueprintCallable, Category = Animation)
+		void SetIsKeyboardEnabled(bool enabled);
 
 	//Triggered when collider overlaps another component
 	//UFUNCTION()
@@ -219,6 +253,10 @@ private:
 	FPlayerAttackMontage* attackMontage;
 
 	EAttackType currentAttack;
+
+	bool isAnimationBlended;
+
+	bool isKeyboardEnabled;
 
 	//Tracking/Debugging
 	/**
