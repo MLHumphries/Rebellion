@@ -219,9 +219,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category=Animation)
 	bool GetIsAnimationBlended();
 
-	/** Bool that tells us if we need to branch our animation Blueprint pathes*/
+	/** Bool that tells us if keyboard should respond to input*/
 	UFUNCTION(BlueprintCallable, Category = Animation)
 		void SetIsKeyboardEnabled(bool enabled);
+
+	/** Returns current attack player is using*/
+	UFUNCTION(BlueprintCallable, Category = Animation)
+		EAttackType GetCurrentAttack();
+
 
 	//Triggered when collider overlaps another component
 	//UFUNCTION()

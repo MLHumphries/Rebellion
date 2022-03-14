@@ -102,9 +102,6 @@ void ARebellionCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	
-
-
 	primaryWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
 	/*primaryWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
 	primaryWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
@@ -203,6 +200,8 @@ void ARebellionCharacter::AttackInput(EAttackType attackType)
 		//Attach collision component to sockets based on transformation definitions
 		const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
 
+		currentAttack = attackType;
+
 		switch (attackType)
 		{
 		case EAttackType::MELEE_PRIMARY:
@@ -211,12 +210,14 @@ void ARebellionCharacter::AttackInput(EAttackType attackType)
 			//Attach box to mesh on socket based on attachmentRules
 			primaryWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
 
+			isKeyboardEnabled = true;
 			isAnimationBlended = false;
 			break;
 
 		case EAttackType::MELEE_SECONDARY:
 			attackRowKey = FName(TEXT("SecondaryAttack"));
 			
+			isKeyboardEnabled = false;
 			isAnimationBlended = false;
 			break;
 
@@ -234,7 +235,6 @@ void ARebellionCharacter::AttackInput(EAttackType attackType)
 				montageSectionIndex = 1;
 			}
 			FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
-			Log(ELogLevel::WARNING, montageSection);
 			PlayAnimMontage(attackMontage->montage, 1.0f, FName(montageSection));
 		}
 		montageSectionIndex++;
@@ -272,6 +272,11 @@ void ARebellionCharacter::AttackInput(EAttackType attackType)
 	//	SwordAudioComponent->SetPitchMultiplier(FMath::RandRange(1.0f, 1.4f));
 	//	SwordAudioComponent->Play(0.0f);
 	//}
+}
+
+EAttackType ARebellionCharacter::GetCurrentAttack()
+{
+	return currentAttack;
 }
 
 bool ARebellionCharacter::GetIsAnimationBlended()
@@ -483,7 +488,7 @@ void ARebellionCharacter::LookUpAtRate(float Rate)
 
 void ARebellionCharacter::MoveForward(float Value)
 {
-	if ((Controller != NULL) && (Value != 0.0f))
+	if ((Controller != NULL) && (Value != 0.0f) && isKeyboardEnabled)
 	{
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -497,7 +502,7 @@ void ARebellionCharacter::MoveForward(float Value)
 
 void ARebellionCharacter::MoveRight(float Value)
 {
-	if ( (Controller != NULL) && (Value != 0.0f) )
+	if ( (Controller != NULL) && (Value != 0.0f) && isKeyboardEnabled )
 	{
 		// find out which way is right
 		const FRotator Rotation = Controller->GetControlRotation();
