@@ -5,9 +5,45 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Components/BoxComponent.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundCue.h"
+#include "Engine/DataTable.h"
 
 #include "RebellionCharacter.generated.h"
 
+//Needs implementing
+USTRUCT(BlueprintType)
+struct FPlayerAttackMontage : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		UAnimMontage* montage;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		int32 animSectionCount;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FString description;
+};
+
+//Needs implementing
+USTRUCT(BlueprintType)
+struct FMeleeCollisionProfile 
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName enabled;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName disabled;
+
+	//default constructor
+	FMeleeCollisionProfile()
+	{
+		enabled = FName(TEXT("Weapon"));
+		disabled = FName(TEXT("NoCollision"));
+	}
+};
 
 //MH added for tracking
 UENUM(BlueprintType)
@@ -33,7 +69,8 @@ enum class ELogOutput : uint8
 UENUM(BlueprintType)
 enum class EAttackType : uint8
 {
-	MELEE			UMETA(DisplayName = "Melee")
+	MELEE_PRIMARY			UMETA(DisplayName = "Melee - Primary"),
+	MELEE_SECONDARY			UMETA(DisplayName = "Melee - Secondary")
 };
 
 UCLASS(config=Game)
@@ -49,15 +86,28 @@ class ARebellionCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
+		class UDataTable* playerAttackDataTable;
+
 	//Melee sword attack montage
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
 		class UAnimMontage* SwordAttackMontage;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
-		class UBoxComponent* meleeWeaponCollisionBox;
+	//Sound Cue
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Audio, meta = (AllowPrivateAccess = "true"))
+		class USoundCue* SwordSoundCue;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
-		class UBoxComponent* rangedWeaponCollisionBox;
+		class UBoxComponent* primaryWeaponCollisionBox;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
+		class UBoxComponent* secondaryWeaponCollisionBox;
+
+	/*UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Collision, meta = (AllowPrivateAccess = "true"))
+		class UBoxComponent* rangedWeaponCollisionBox;*/
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
+		float animationVariable;
 
 public:
 	ARebellionCharacter();
@@ -145,10 +195,16 @@ public:
 	UFUNCTION()
 		void BlockEnd();
 
-	//Triggers attack aninimatiosn based on user input
-	void AttackInput();
+	//Triggers attack type based on user input
+	void AttackInput(EAttackType attackType);
+	UPROPERTY()
+		int montageSectionIndex = 1;
 
 	//Attack
+
+	void PrimaryAttack();
+	void SecondaryAttack();
+
 	UFUNCTION()
 		void AttackStart();
 	UFUNCTION()
@@ -158,6 +214,20 @@ public:
 	//Triggered whe collision hit even fires between our weapon and enemy entities
 	UFUNCTION()
 		void OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	/** Bool that tells us if we need to branch our animation Blueprint pathes*/
+	UFUNCTION(BlueprintCallable, Category=Animation)
+	bool GetIsAnimationBlended();
+
+	/** Bool that tells us if keyboard should respond to input*/
+	UFUNCTION(BlueprintCallable, Category = Animation)
+		void SetIsKeyboardEnabled(bool enabled);
+
+	/** Returns current attack player is using*/
+	UFUNCTION(BlueprintCallable, Category = Animation)
+		EAttackType GetCurrentAttack();
+
+
 	//Triggered when collider overlaps another component
 	//UFUNCTION()
 	//	void OnAttackOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -180,6 +250,18 @@ public:
 		bool bCanDash;
 	UPROPERTY(EditAnywhere)
 		float dashStopTimer;
+
+private:
+
+	UAudioComponent* SwordAudioComponent;
+
+	FPlayerAttackMontage* attackMontage;
+
+	EAttackType currentAttack;
+
+	bool isAnimationBlended;
+
+	bool isKeyboardEnabled;
 
 	//Tracking/Debugging
 	/**

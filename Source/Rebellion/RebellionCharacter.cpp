@@ -10,6 +10,8 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Math/Vector.h"
 
 
 
@@ -56,28 +58,41 @@ ARebellionCharacter::ARebellionCharacter()
 	sprintSpeed = 900;
 	//Dashing adjusters
 	bCanDash = true;
-	dashDistance = 6000;
+	dashDistance = 1000;
 	dashCooldown = 1;
 	dashStopTimer = 0.1;
 
-	//Load animation montage
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> SwordAttackMontageObject(TEXT("AnimMontage'/Game/Mannequin/Animations/MeleeAttackMontage.MeleeAttackMontage'"));
-	if (SwordAttackMontageObject.Succeeded()) 
+	//Load melee attack data table
+	static ConstructorHelpers::FObjectFinder<UDataTable> playerAttackMontageObject(TEXT("DataTable'/Game/DataTables/PlayerAttackMontageDataTable.PlayerAttackMontageDataTable'"));
+	if (playerAttackMontageObject.Succeeded()) 
 	{
 		//if the object is loaded, get the object that was loaded
-		SwordAttackMontage = SwordAttackMontageObject.Object;
+		playerAttackDataTable = playerAttackMontageObject.Object;
+	}
+
+	//Load sounds cue object
+	static ConstructorHelpers::FObjectFinder<USoundCue> SwordSoundCueObject(TEXT("SoundCue'/Game/Audio/Player/SwordSwooshSoundCue.SwordSwooshSoundCue'"));
+	if (SwordSoundCueObject.Succeeded()) 
+	{
+		//if sound object is loaded, get object that was loaded
+		SwordSoundCue = SwordSoundCueObject.Object;
+
+		//Instantiate SwordAudioComponent and attach to player
+		SwordAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("SwordAudioComponent"));
+		SwordAudioComponent->SetupAttachment(RootComponent);
+
 	}
 
 	//Creates collision box
-	meleeWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeCollisionBox"));
-	meleeWeaponCollisionBox->SetupAttachment(RootComponent);
+	primaryWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeCollisionBox"));
+	primaryWeaponCollisionBox->SetupAttachment(RootComponent);
 	//Reference to Engine-Collision profiles
-	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
+	primaryWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
 
 	//TODO: Method to handle shooting and use this
-	rangedWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("RangedCollisionBox"));
-	rangedWeaponCollisionBox->SetupAttachment(RootComponent);
+	//rangedWeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("RangedCollisionBox"));
+	//rangedWeaponCollisionBox->SetupAttachment(RootComponent);
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
@@ -87,15 +102,14 @@ void ARebellionCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//Attach collision component to sockets based on transformation definitions
-	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+	primaryWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
+	/*primaryWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
+	primaryWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
 
-	//Attach box to mesh on socket based on attachmentRules
-	meleeWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
-
-	meleeWeaponCollisionBox->OnComponentHit.AddDynamic(this, &ARebellionCharacter::OnAttackHit);
-	/*meleeWeaponCollisionBox->OnComponentBeginOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapBegin);
-	meleeWeaponCollisionBox->OnComponentEndOverlap.AddDynamic(this, &ARebellionCharacter::OnAttackOverlapEnd);*/
+	if (SwordAudioComponent && SwordSoundCue)
+	{
+		SwordAudioComponent->SetSound(SwordSoundCue);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -129,11 +143,15 @@ void ARebellionCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	// VR headset functionality
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &ARebellionCharacter::OnResetVR);
 
-	//MH Added Inputs
-	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ARebellionCharacter::AttackInput);
-	PlayerInputComponent->BindAction("Attack", IE_Released, this, &ARebellionCharacter::AttackEnd);
-	PlayerInputComponent->BindAction("Block", IE_Pressed, this, &ARebellionCharacter::BlockStart);
-	PlayerInputComponent->BindAction("Block", IE_Released, this, &ARebellionCharacter::BlockEnd);
+	//Attack Inputs
+	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ARebellionCharacter::PrimaryAttack);
+	//Keep for testing
+	//PlayerInputComponent->BindAction("PrimaryAttack", IE_Released, this, &ARebellionCharacter::AttackEnd);
+	PlayerInputComponent->BindAction("SecondaryAttack", IE_Pressed, this, &ARebellionCharacter::SecondaryAttack);
+	//Keep for testing
+	//PlayerInputComponent->BindAction("SecondaryAttack", IE_Released, this, &ARebellionCharacter::BlockEnd);
+	
+	//Movement Inputs
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ARebellionCharacter::Sprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ARebellionCharacter::Walk);
 	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ARebellionCharacter::DashStart);
@@ -169,17 +187,117 @@ void ARebellionCharacter::Walk()
 	GetCharacterMovement()->MaxWalkSpeed = walkSpeed;
 }
 
-void ARebellionCharacter::AttackInput() 
+//MH added
+void ARebellionCharacter::AttackInput(EAttackType attackType) 
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
-	//generate random number for montage call. 2 will be the first called since 1 has an issue with losing reference
-	int montageSectionIndex = FMath::RandRange(1, 3);
+	if (playerAttackDataTable)
+	{
+		static const FString contextString(TEXT("Player Attack Montage Context"));
+		FName attackRowKey;
 
-	//string reference for animation section
-	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+		//Attach collision component to sockets based on transformation definitions
+		const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
 
-	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+		currentAttack = attackType;
+
+		switch (attackType)
+		{
+		case EAttackType::MELEE_PRIMARY:
+			attackRowKey = FName(TEXT("PrimaryAttack"));
+
+			//Attach box to mesh on socket based on attachmentRules
+			primaryWeaponCollisionBox->AttachToComponent(GetMesh(), AttachmentRules, "hand_r_weapon");
+
+			isKeyboardEnabled = true;
+			isAnimationBlended = false;
+			break;
+
+		case EAttackType::MELEE_SECONDARY:
+			attackRowKey = FName(TEXT("SecondaryAttack"));
+			
+			isKeyboardEnabled = false;
+			isAnimationBlended = false;
+			break;
+
+		default:
+			isAnimationBlended = true;
+			break;
+		}
+
+		attackMontage = playerAttackDataTable->FindRow<FPlayerAttackMontage>(attackRowKey, contextString, true);
+
+		if (attackMontage)
+		{
+			if (montageSectionIndex > 3)
+			{
+				montageSectionIndex = 1;
+			}
+			FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+			PlayAnimMontage(attackMontage->montage, 1.0f, FName(montageSection));
+		}
+		montageSectionIndex++;
+	}
+
+	
+	////Add statement for air attack here**
+	//if (GetCharacterMovement()->IsFalling())
+	//{
+	//	FString montageSection = "start_3";
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//}
+	//else if (montageSectionIndex > 3 && !GetCharacterMovement()->IsFalling()) 
+	//{
+	//	montageSectionIndex = 1;
+
+	//	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//	montageSectionIndex++;
+	//}
+	//else 
+	//{
+	//	//string reference for animation section
+	//	FString montageSection = "start_" + FString::FromInt(montageSectionIndex);
+
+	//	PlayAnimMontage(SwordAttackMontage, 1.0f, FName(*montageSection));
+	//	montageSectionIndex++;
+	//}
+	//
+	////Plays sound if audio is not currently playing and SwordAudioComponent exists
+	//if (SwordAudioComponent && !SwordAudioComponent->IsPlaying())
+	//{
+	//	//default pitch volume is 1.0f
+	//	SwordAudioComponent->SetPitchMultiplier(FMath::RandRange(1.0f, 1.4f));
+	//	SwordAudioComponent->Play(0.0f);
+	//}
+}
+
+EAttackType ARebellionCharacter::GetCurrentAttack()
+{
+	return currentAttack;
+}
+
+bool ARebellionCharacter::GetIsAnimationBlended()
+{
+	return isAnimationBlended;
+}
+
+void ARebellionCharacter::SetIsKeyboardEnabled(bool enabled)
+{
+	isKeyboardEnabled = enabled;
+}
+//MH added
+void ARebellionCharacter::PrimaryAttack()
+{
+	AttackInput(EAttackType::MELEE_PRIMARY);
+}
+
+//MH added
+void ARebellionCharacter::SecondaryAttack() 
+{
+	AttackInput(EAttackType::MELEE_SECONDARY);
 }
 
 //MH added
@@ -187,24 +305,33 @@ void ARebellionCharacter::AttackStart()
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 	
-	meleeWeaponCollisionBox->SetCollisionProfileName("Weapon");
+	primaryWeaponCollisionBox->SetCollisionProfileName("Weapon");
 	//Sets "Simulation Generates Hit events" value
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(true);
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(true);
 	//Sets "Generate Overlap Events" value
-	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
+	/*primaryWeaponCollisionBox->SetGenerateOverlapEvents(true);*/
 }
 
+//MH Added
 void ARebellionCharacter::AttackEnd() 
 {
 	Log(ELogLevel::INFO, __FUNCTION__);
 
-	meleeWeaponCollisionBox->SetCollisionProfileName("NoCollision");
-	meleeWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
-	/*meleeWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
+	primaryWeaponCollisionBox->SetCollisionProfileName("NoCollision");
+	primaryWeaponCollisionBox->SetNotifyRigidBodyCollision(false);
+	/*primaryWeaponCollisionBox->SetGenerateOverlapEvents(false);*/
 }
 
+//MH added
 void ARebellionCharacter::OnAttackHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) 
 {
+	/*int enemyHealth = 10;
+
+	if (Hit.GetActor()->GetName() == "EnemyCube")
+	{
+		enemyHealth--;
+		Log(ELogLevel::DEBUG, FString::FromInt(enemyHealth));
+	}*/
 	Log(ELogLevel::WARNING, Hit.GetActor()->GetName());
 }
 
@@ -238,11 +365,13 @@ void ARebellionCharacter::DashStart()
 	Log(ELogLevel::INFO, __FUNCTION__);
 	if (bCanDash == true)
 	{
+		//APlayerController player;
 		//Removes friction
 		GetCharacterMovement()->BrakingFrictionFactor = 0;
+		//Log(ELogLevel::WARNING, FVector::);
 		//launches character. Booleans set to true allow override of current velocities from XYZ
 		//GetSafeNormal sets the X and Y value to 1 so dashDistance can be consistent
-		LaunchCharacter(FVector(FollowCamera->GetForwardVector().X, FollowCamera->GetForwardVector().Y, 0).GetSafeNormal() * dashDistance, true, true);
+		//LaunchCharacter(FVector(addin.Inp, GetCharacterMovement(), 0).GetSafeNormal() * dashDistance, true, true);
 		bCanDash = false;
 		//This timer means we wait timer seconds and stop dashing. Boolean sets looping timer to false
 		GetWorldTimerManager().SetTimer(dashTimer, this, & ARebellionCharacter::DashStop, dashStopTimer, false);
@@ -359,7 +488,7 @@ void ARebellionCharacter::LookUpAtRate(float Rate)
 
 void ARebellionCharacter::MoveForward(float Value)
 {
-	if ((Controller != NULL) && (Value != 0.0f))
+	if ((Controller != NULL) && (Value != 0.0f) && isKeyboardEnabled)
 	{
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -373,7 +502,7 @@ void ARebellionCharacter::MoveForward(float Value)
 
 void ARebellionCharacter::MoveRight(float Value)
 {
-	if ( (Controller != NULL) && (Value != 0.0f) )
+	if ( (Controller != NULL) && (Value != 0.0f) && isKeyboardEnabled )
 	{
 		// find out which way is right
 		const FRotator Rotation = Controller->GetControlRotation();

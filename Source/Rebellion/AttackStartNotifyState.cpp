@@ -32,6 +32,23 @@ void UAttackStartNotifyState::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimS
 		if (player != NULL)
 		{
 			player->AttackEnd();
+			player->SetIsKeyboardEnabled(true);
+		}
+	}
+}
+
+void UAttackStartNotifyState::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float frameDeltaTime)
+{
+	if (MeshComp != NULL && MeshComp->GetOwner() != NULL)
+	{
+		//this with the RebellionCharacter.h creates a reference to the player
+		ARebellionCharacter* player = Cast<ARebellionCharacter>(MeshComp->GetOwner());
+		if (player != NULL)
+		{
+			if(player->GetCurrentAttack() == EAttackType::MELEE_SECONDARY || player->GetCurrentAttack() == EAttackType::MELEE_PRIMARY)
+			{
+				player->SetIsKeyboardEnabled(false);
+			}
 		}
 	}
 }
